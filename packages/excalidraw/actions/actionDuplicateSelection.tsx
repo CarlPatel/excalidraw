@@ -17,6 +17,7 @@ import {
 import { syncMovedIndices } from "@excalidraw/element";
 
 import { duplicateElements } from "@excalidraw/element";
+import { repeatDuplicateElements } from "@excalidraw/element";
 
 import { CaptureUpdateAction } from "@excalidraw/element";
 
@@ -31,7 +32,15 @@ import { useStylesPanelMode } from "../components/App";
 
 import { register } from "./register";
 
-export const actionDuplicateSelection = register({
+type RepeatDuplicateSelectionData = {
+  count: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+export const actionDuplicateSelection = register<
+  RepeatDuplicateSelectionData | null
+>({
   name: "duplicateSelection",
   label: "labels.duplicateSelection",
   icon: DuplicateIcon,
@@ -60,27 +69,52 @@ export const actionDuplicateSelection = register({
       }
     }
 
-    let { duplicatedElements, elementsWithDuplicates } = duplicateElements({
-      type: "in-place",
-      elements,
-      idsOfElementsToDuplicate: arrayToMap(
-        getSelectedElements(elements, appState, {
-          includeBoundTextElement: true,
-          includeElementsInFrames: true,
-        }),
-      ),
-      appState,
-      randomizeSeed: true,
-      overrides: ({ origElement, origIdToDuplicateId }) => {
-        const duplicateFrameId =
-          origElement.frameId && origIdToDuplicateId.get(origElement.frameId);
-        return {
-          x: origElement.x + DEFAULT_GRID_SIZE / 2,
-          y: origElement.y + DEFAULT_GRID_SIZE / 2,
-          frameId: duplicateFrameId ?? origElement.frameId,
-        };
-      },
-    });
+    const idsOfElementsToDuplicate = arrayToMap(
+      getSelectedElements(elements, appState, {
+        includeBoundTextElement: true,
+        includeElementsInFrames: true,
+      }),
+    );
+
+    const result = formData
+      ? repeatDuplicateElements({
+          elements,
+          idsOfElementsToDuplicate,
+          appState,
+          randomizeSeed: true,
+          ...formData,
+          overrides: ({ origElement, origIdToDuplicateId }) => {
+            const duplicateFrameId =
+              origElement.frameId &&
+              origIdToDuplicateId.get(origElement.frameId);
+            return {
+              frameId: duplicateFrameId ?? origElement.frameId,
+            };
+          },
+        })
+      : duplicateElements({
+          type: "in-place",
+          elements,
+          idsOfElementsToDuplicate,
+          appState,
+          randomizeSeed: true,
+          overrides: ({ origElement, origIdToDuplicateId }) => {
+            const duplicateFrameId =
+              origElement.frameId &&
+              origIdToDuplicateId.get(origElement.frameId);
+            return {
+              x: origElement.x + DEFAULT_GRID_SIZE / 2,
+              y: origElement.y + DEFAULT_GRID_SIZE / 2,
+              frameId: duplicateFrameId ?? origElement.frameId,
+            };
+          },
+        });
+
+    if (result === false) {
+      return false;
+    }
+
+    let { duplicatedElements, elementsWithDuplicates } = result;
 
     if (app.props.onDuplicate && elementsWithDuplicates) {
       const mappedElements = app.props.onDuplicate(

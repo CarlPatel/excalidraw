@@ -106,6 +106,138 @@ describe("actionDuplicateSelection", () => {
     assertSelectedElements([duplicate.id]);
   });
 
+  it("repeats grouped labeled elements and selects the copies", () => {
+    const rectangle = API.createElement({
+      type: "rectangle",
+      id: "rectangle",
+      x: 10,
+      y: 20,
+      groupIds: ["group"],
+      boundElements: [{ id: "label", type: "text" }],
+    });
+    const ellipse = API.createElement({
+      type: "ellipse",
+      id: "ellipse",
+      x: 120,
+      y: 20,
+      groupIds: ["group"],
+    });
+    const label = API.createElement({
+      type: "text",
+      id: "label",
+      x: 10,
+      y: 20,
+      groupIds: ["group"],
+      containerId: rectangle.id,
+    });
+
+    API.setElements([rectangle, ellipse, label]);
+    API.setSelectedElements([rectangle, ellipse]);
+
+    act(() => {
+      h.app.actionManager.executeAction(actionDuplicateSelection, "api", {
+        count: 2,
+        offsetX: 200,
+        offsetY: 15,
+      });
+    });
+
+    const rectangleCopies = h.elements.filter(
+      (element) => (element as any)[ORIG_ID] === rectangle.id,
+    );
+    const ellipseCopies = h.elements.filter(
+      (element) => (element as any)[ORIG_ID] === ellipse.id,
+    );
+    const labelCopies = h.elements.filter(
+      (element) => (element as any)[ORIG_ID] === label.id,
+    );
+
+    expect(rectangleCopies).toHaveLength(2);
+    expect(ellipseCopies).toHaveLength(2);
+    expect(labelCopies).toHaveLength(2);
+    expect(rectangleCopies.map((element) => element.x)).toEqual([210, 410]);
+    expect(rectangleCopies.map((element) => element.y)).toEqual([35, 50]);
+    expect(new Set(rectangleCopies.map((element) => element.id)).size).toBe(2);
+    expect(rectangleCopies[0].groupIds).toEqual(ellipseCopies[0].groupIds);
+    expect(rectangleCopies[1].groupIds).toEqual(ellipseCopies[1].groupIds);
+    expect(rectangleCopies[0].groupIds).not.toEqual(rectangle.groupIds);
+    expect((labelCopies[0] as any).containerId).toBe(rectangleCopies[0].id);
+    expect((labelCopies[1] as any).containerId).toBe(rectangleCopies[1].id);
+    expect(API.getSelectedElements().map((element) => element.id)).toEqual(
+      expect.arrayContaining(
+        rectangleCopies.concat(ellipseCopies).map((element) => element.id),
+      ),
+    );
+  });
+
+  it("repeats selected frames with their bound text and children", () => {
+    const frame = API.createElement({ type: "frame", id: "frame" });
+    const [rectangle, label] = API.createTextContainer({ frameId: frame.id });
+
+    API.setElements([frame, rectangle, label]);
+    API.setSelectedElements([frame]);
+
+    act(() => {
+      h.app.actionManager.executeAction(actionDuplicateSelection, "api", {
+        count: 2,
+        offsetX: 100,
+        offsetY: 0,
+      });
+    });
+
+    const frameCopies = h.elements.filter(
+      (element) => (element as any)[ORIG_ID] === frame.id,
+    );
+    const rectangleCopies = h.elements.filter(
+      (element) => (element as any)[ORIG_ID] === rectangle.id,
+    );
+    const labelCopies = h.elements.filter(
+      (element) => (element as any)[ORIG_ID] === label.id,
+    );
+
+    expect(frameCopies).toHaveLength(2);
+    expect(rectangleCopies).toHaveLength(2);
+    expect(labelCopies).toHaveLength(2);
+    rectangleCopies.forEach((element, index) => {
+      expect(element.frameId).toBe(frameCopies[index].id);
+      expect((labelCopies[index] as any).containerId).toBe(element.id);
+      expect((labelCopies[index] as any).frameId).toBe(frameCopies[index].id);
+    });
+  });
+
+  it("records all repeated copies in one undo/redo operation", () => {
+    const rectangle = API.createElement({ type: "rectangle" });
+
+    API.updateScene({
+      elements: [rectangle],
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+    API.setSelectedElements([rectangle]);
+
+    act(() => {
+      h.app.actionManager.executeAction(actionDuplicateSelection, "api", {
+        count: 3,
+        offsetX: 50,
+        offsetY: 0,
+      });
+    });
+
+    expect(API.getUndoStack()).toHaveLength(1);
+    expect(h.elements.filter((element) => !element.isDeleted)).toHaveLength(4);
+
+    API.executeAction(createUndoAction(h.history));
+
+    expect(API.getUndoStack()).toHaveLength(0);
+    expect(API.getRedoStack()).toHaveLength(1);
+    expect(h.elements.filter((element) => !element.isDeleted)).toHaveLength(1);
+
+    API.executeAction(createRedoAction(h.history));
+
+    expect(API.getUndoStack()).toHaveLength(1);
+    expect(API.getRedoStack()).toHaveLength(0);
+    expect(h.elements.filter((element) => !element.isDeleted)).toHaveLength(4);
+  });
+
   describe("duplicating frames", () => {
     it("frame selected only", async () => {
       const frame = API.createElement({
