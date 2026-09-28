@@ -1,21 +1,109 @@
-import { ORIG_ID } from "@excalidraw/common";
+import { DEFAULT_GRID_SIZE, ORIG_ID } from "@excalidraw/common";
+import { CaptureUpdateAction } from "@excalidraw/element";
 
 import { Excalidraw } from "../index";
 import { API } from "../tests/helpers/api";
 import {
   act,
   assertElements,
+  assertSelectedElements,
   getCloneByOrigId,
   render,
 } from "../tests/test-utils";
 
 import { actionDuplicateSelection } from "./actionDuplicateSelection";
+import { createRedoAction, createUndoAction } from "./actionHistory";
 
 const { h } = window;
 
 describe("actionDuplicateSelection", () => {
   beforeEach(async () => {
     await render(<Excalidraw />);
+  });
+
+  it("duplicates at the default offset and selects the copy", () => {
+    const rectangle = API.createElement({
+      type: "rectangle",
+      x: 10,
+      y: 20,
+    });
+
+    API.setElements([rectangle]);
+    API.setSelectedElements([rectangle]);
+
+    act(() => {
+      h.app.actionManager.executeAction(actionDuplicateSelection);
+    });
+
+    const duplicate = getCloneByOrigId(rectangle.id);
+
+    expect(duplicate).toMatchObject({
+      x: rectangle.x + DEFAULT_GRID_SIZE / 2,
+      y: rectangle.y + DEFAULT_GRID_SIZE / 2,
+    });
+    assertSelectedElements([duplicate]);
+  });
+
+  it("regenerates one group id for a duplicated group", () => {
+    const rectangle1 = API.createElement({
+      type: "rectangle",
+      groupIds: ["group1"],
+    });
+    const rectangle2 = API.createElement({
+      type: "ellipse",
+      groupIds: ["group1"],
+    });
+
+    API.setElements([rectangle1, rectangle2]);
+    API.setSelectedElements([rectangle1, rectangle2]);
+
+    act(() => {
+      h.app.actionManager.executeAction(actionDuplicateSelection);
+    });
+
+    const duplicate1 = getCloneByOrigId(rectangle1.id);
+    const duplicate2 = getCloneByOrigId(rectangle2.id);
+
+    expect(duplicate1.groupIds).toEqual(duplicate2.groupIds);
+    expect(duplicate1.groupIds).not.toEqual(rectangle1.groupIds);
+  });
+
+  it("undoes and redoes the complete duplicate operation", () => {
+    const rectangle = API.createElement({ type: "rectangle" });
+
+    API.updateScene({
+      elements: [rectangle],
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+    API.setSelectedElements([rectangle]);
+
+    act(() => {
+      h.app.actionManager.executeAction(actionDuplicateSelection);
+    });
+
+    expect(API.getUndoStack()).toHaveLength(1);
+    const duplicate = getCloneByOrigId(rectangle.id);
+    assertSelectedElements([duplicate]);
+
+    API.executeAction(createUndoAction(h.history));
+
+    expect(API.getUndoStack()).toHaveLength(0);
+    expect(API.getRedoStack()).toHaveLength(1);
+    expect(h.elements).toEqual([
+      expect.objectContaining({ id: rectangle.id, isDeleted: false }),
+      expect.objectContaining({ [ORIG_ID]: rectangle.id, isDeleted: true }),
+    ]);
+    assertSelectedElements([]);
+
+    API.executeAction(createRedoAction(h.history));
+
+    expect(API.getUndoStack()).toHaveLength(1);
+    expect(API.getRedoStack()).toHaveLength(0);
+    expect(h.elements).toEqual([
+      expect.objectContaining({ id: rectangle.id, isDeleted: false }),
+      expect.objectContaining({ [ORIG_ID]: rectangle.id, isDeleted: false }),
+    ]);
+    assertSelectedElements([duplicate.id]);
   });
 
   describe("duplicating frames", () => {
