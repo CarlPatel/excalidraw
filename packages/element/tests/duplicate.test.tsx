@@ -1,6 +1,7 @@
 import { pointFrom } from "@excalidraw/math";
 
 import {
+  DEFAULT_GRID_SIZE,
   FONT_FAMILY,
   ORIG_ID,
   ROUNDNESS,
@@ -29,9 +30,13 @@ import {
   deepCopyElement,
   duplicateElement,
   duplicateElements,
+  repeatDuplicateElements,
 } from "../src/duplicate";
 
-import type { ExcalidrawLinearElement } from "../src/types";
+import type {
+  ExcalidrawElement,
+  ExcalidrawLinearElement,
+} from "../src/types";
 
 const { h } = window;
 const mouse = new Pointer("mouse");
@@ -418,6 +423,187 @@ describe("duplicating multiple elements", () => {
 
       expect(typeof clonedRectangle1.groupIds[0]).toBe("string");
       expect(rectangle1.groupIds[0]).not.toBe(clonedRectangle1.groupIds[0]);
+    });
+  });
+});
+
+describe("repeated duplication", () => {
+  const repeat = (
+    elements: readonly ExcalidrawElement[],
+    count: number,
+    offsetX: number,
+    offsetY: number,
+  ) =>
+    repeatDuplicateElements({
+      elements,
+      count,
+      offsetX,
+      offsetY,
+      idsOfElementsToDuplicate: new Map(
+        elements.map((element) => [element.id, element]),
+      ),
+      appState: {
+        editingGroupId: null,
+        selectedGroupIds: {},
+      },
+    });
+
+  it.each([
+    [0, 1, 1],
+    [21, 1, 1],
+    [1.5, 1, 1],
+    [1, Number.NaN, 1],
+    [1, 1, Number.POSITIVE_INFINITY],
+  ])(
+    "rejects invalid repeat inputs: %s, %s, %s",
+    (count, offsetX, offsetY) => {
+      const rectangle = API.createElement({ type: "rectangle" });
+
+      expect(repeat([rectangle], count, offsetX, offsetY)).toBe(false);
+    },
+  );
+
+  it("matches one-copy placement with the default offset and supports custom offsets", () => {
+    const rectangle = API.createElement({
+      type: "rectangle",
+      x: 10,
+      y: 20,
+    });
+
+    const defaultResult = repeat(
+      [rectangle],
+      1,
+      DEFAULT_GRID_SIZE / 2,
+      DEFAULT_GRID_SIZE / 2,
+    );
+    const customResult = repeat([rectangle], 1, -25, 30);
+
+    if (!defaultResult || !customResult) {
+      throw new Error("Expected valid repeat duplication results");
+    }
+
+    expect(defaultResult.duplicatedElements[0]).toMatchObject({
+      x: rectangle.x + DEFAULT_GRID_SIZE / 2,
+      y: rectangle.y + DEFAULT_GRID_SIZE / 2,
+    });
+    expect(customResult.duplicatedElements[0]).toMatchObject({
+      x: rectangle.x - 25,
+      y: rectangle.y + 30,
+    });
+  });
+
+  it("keeps repeated labels, groups, and bindings within each copy", () => {
+    const rectangle1 = API.createElement({
+      type: "rectangle",
+      id: "rectangle1",
+      groupIds: ["group1"],
+      boundElements: [
+        { id: "label1", type: "text" },
+        { id: "arrow", type: "arrow" },
+      ],
+    });
+    const label1 = API.createElement({
+      type: "text",
+      id: "label1",
+      containerId: rectangle1.id,
+      groupIds: ["group1"],
+    });
+    const rectangle2 = API.createElement({
+      type: "rectangle",
+      id: "rectangle2",
+      x: 200,
+      groupIds: ["group1"],
+      boundElements: [{ id: "arrow", type: "arrow" }],
+    });
+    const arrow = API.createElement({
+      type: "arrow",
+      id: "arrow",
+      startBinding: {
+        elementId: rectangle1.id,
+        fixedPoint: [0.5, 0.5],
+        mode: "orbit",
+      },
+      endBinding: {
+        elementId: rectangle2.id,
+        fixedPoint: [0.5, 0.5],
+        mode: "orbit",
+      },
+    });
+
+    const result = repeat(
+      [rectangle1, label1, rectangle2, arrow],
+      2,
+      150,
+      25,
+    );
+
+    if (!result) {
+      throw new Error("Expected valid repeat duplication result");
+    }
+
+    const copies = result.duplicatedElements;
+    expect(new Set(copies.map((element) => element.id)).size).toBe(
+      copies.length,
+    );
+
+    const rectangleCopies = copies.filter(
+      (element) => (element as any)[ORIG_ID] === rectangle1.id,
+    );
+    const labelCopies = copies.filter(
+      (element) => (element as any)[ORIG_ID] === label1.id,
+    );
+    const arrowCopies = copies.filter(
+      (element) => (element as any)[ORIG_ID] === arrow.id,
+    );
+
+    expect(rectangleCopies).toHaveLength(2);
+    expect(labelCopies).toHaveLength(2);
+    expect(arrowCopies).toHaveLength(2);
+
+    const rectangle2Copies = copies.filter(
+      (element) => (element as any)[ORIG_ID] === rectangle2.id,
+    );
+    rectangleCopies.forEach((rectangleCopy, index) => {
+      expect(rectangleCopy.groupIds).toEqual(rectangle2Copies[index].groupIds);
+      expect(rectangleCopy.groupIds).not.toEqual(rectangle1.groupIds);
+      expect((labelCopies[index] as any).containerId).toBe(rectangleCopy.id);
+      expect((arrowCopies[index] as any).startBinding?.elementId).toBe(
+        rectangleCopy.id,
+      );
+      expect((arrowCopies[index] as any).endBinding?.elementId).toBe(
+        rectangle2Copies[index].id,
+      );
+    });
+  });
+
+  it("preserves frame membership for every repeated frame copy", () => {
+    const frame = API.createElement({
+      type: "frame",
+      id: "frame",
+    });
+    const rectangle = API.createElement({
+      type: "rectangle",
+      id: "rectangle",
+      frameId: frame.id,
+    });
+
+    const result = repeat([frame, rectangle], 2, 100, 0);
+
+    if (!result) {
+      throw new Error("Expected valid repeat duplication result");
+    }
+
+    const frameCopies = result.duplicatedElements.filter(
+      (element) => (element as any)[ORIG_ID] === frame.id,
+    );
+    const rectangleCopies = result.duplicatedElements.filter(
+      (element) => (element as any)[ORIG_ID] === rectangle.id,
+    );
+
+    expect(frameCopies).toHaveLength(2);
+    expect(rectangleCopies).toHaveLength(2);
+    rectangleCopies.forEach((rectangleCopy, index) => {
+      expect(rectangleCopy.frameId).toBe(frameCopies[index].id);
     });
   });
 });
