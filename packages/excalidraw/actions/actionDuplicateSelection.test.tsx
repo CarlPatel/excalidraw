@@ -1,3 +1,5 @@
+import { fireEvent, screen } from "@testing-library/react";
+
 import { DEFAULT_GRID_SIZE, ORIG_ID } from "@excalidraw/common";
 import { CaptureUpdateAction } from "@excalidraw/element";
 
@@ -236,6 +238,41 @@ describe("actionDuplicateSelection", () => {
     expect(API.getUndoStack()).toHaveLength(1);
     expect(API.getRedoStack()).toHaveLength(0);
     expect(h.elements.filter((element) => !element.isDeleted)).toHaveLength(4);
+  });
+
+  it("submits repeat values from the duplicate action form and supports cancel", () => {
+    const rectangle = API.createElement({ type: "rectangle" });
+
+    API.setElements([rectangle]);
+    API.setSelectedElements([rectangle]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
+
+    const inputs = Array.from(
+      document.querySelectorAll<HTMLInputElement>(".ExcTextField input"),
+    );
+    expect(inputs).toHaveLength(3);
+    expect(inputs.map((input) => input.value)).toEqual([
+      "1",
+      String(DEFAULT_GRID_SIZE / 2),
+      String(DEFAULT_GRID_SIZE / 2),
+    ]);
+
+    fireEvent.change(inputs[0], { target: { value: "2" } });
+    fireEvent.change(inputs[1], { target: { value: "50" } });
+    fireEvent.change(inputs[2], { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(
+      h.elements.filter((element) => (element as any)[ORIG_ID] === rectangle.id),
+    ).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(
+      h.elements.filter((element) => (element as any)[ORIG_ID] === rectangle.id),
+    ).toHaveLength(2);
   });
 
   describe("duplicating frames", () => {

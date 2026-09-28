@@ -28,7 +28,7 @@ type TextFieldProps = {
   className?: string;
   placeholder?: string;
   isRedacted?: boolean;
-  type?: "text" | "search";
+  type?: "text" | "search" | "number";
 } & ({ value: string } | { defaultValue: string });
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
