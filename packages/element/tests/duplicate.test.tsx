@@ -553,6 +553,20 @@ describe("repeated duplication", () => {
     },
   );
 
+  it("accepts the maximum repeat count", () => {
+    const rectangle = API.createElement({ type: "rectangle" });
+    const result = repeat([rectangle], 20, 1, 1);
+
+    if (!result) {
+      throw new Error("Expected count 20 to be accepted");
+    }
+
+    expect(result.duplicatedElements).toHaveLength(20);
+    expect(new Set(result.duplicatedElements.map((element) => element.id)).size).toBe(
+      20,
+    );
+  });
+
   it("matches normal duplication for count one with the default offset", () => {
     const fixture = createRelationshipFixture();
     const normalResult = duplicateNormally(

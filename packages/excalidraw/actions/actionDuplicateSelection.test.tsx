@@ -306,6 +306,72 @@ describe("actionDuplicateSelection", () => {
     });
   });
 
+  it("repeats grouped labeled children in an unselected frame", () => {
+    const frame = API.createElement({ type: "frame", id: "frame" });
+    const rectangle = API.createElement({
+      type: "rectangle",
+      id: "rectangle",
+      frameId: frame.id,
+      groupIds: ["group"],
+      boundElements: [{ id: "label", type: "text" }],
+    });
+    const ellipse = API.createElement({
+      type: "ellipse",
+      id: "ellipse",
+      frameId: frame.id,
+      groupIds: ["group"],
+    });
+    const label = API.createElement({
+      type: "text",
+      id: "label",
+      containerId: rectangle.id,
+      frameId: frame.id,
+      groupIds: ["group"],
+    });
+
+    API.setElements([frame, rectangle, ellipse, label]);
+    API.setSelectedElements([rectangle, ellipse]);
+
+    act(() => {
+      h.app.actionManager.executeAction(actionDuplicateSelection, "api", {
+        count: 2,
+        offsetX: 150,
+        offsetY: 0,
+      });
+    });
+
+    const rectangleCopies = h.elements.filter(
+      (element) => (element as any)[ORIG_ID] === rectangle.id,
+    );
+    const ellipseCopies = h.elements.filter(
+      (element) => (element as any)[ORIG_ID] === ellipse.id,
+    );
+    const labelCopies = h.elements.filter(
+      (element) => (element as any)[ORIG_ID] === label.id,
+    );
+    const generatedCopies = [...rectangleCopies, ...ellipseCopies, ...labelCopies];
+
+    expect(generatedCopies).toHaveLength(6);
+    expect(new Set(generatedCopies.map((element) => element.id)).size).toBe(6);
+    expect(h.elements.filter((element) => (element as any)[ORIG_ID] === frame.id)).toHaveLength(0);
+
+    rectangleCopies.forEach((rectangleCopy, index) => {
+      const ellipseCopy = ellipseCopies[index];
+      const labelCopy = labelCopies[index] as any;
+
+      expect(rectangleCopy.groupIds).toEqual(ellipseCopy.groupIds);
+      expect(rectangleCopy.groupIds).toEqual(labelCopy.groupIds);
+      expect(rectangleCopy.groupIds).not.toEqual(rectangle.groupIds);
+      expect(rectangleCopy.frameId).toBe(frame.id);
+      expect(ellipseCopy.frameId).toBe(frame.id);
+      expect(labelCopy.frameId).toBe(frame.id);
+      expect(labelCopy.containerId).toBe(rectangleCopy.id);
+      expect(rectangleCopy.boundElements).toEqual([
+        { id: labelCopy.id, type: "text" },
+      ]);
+    });
+  });
+
   it("records all repeated copies in one undo/redo operation", () => {
     const rectangle = API.createElement({ type: "rectangle" });
 
@@ -345,6 +411,11 @@ describe("actionDuplicateSelection", () => {
     API.setElements([rectangle]);
     API.setSelectedElements([rectangle]);
 
+    const elementsBefore = h.elements.map((element) => ({ ...element }));
+    const selectedElementIdsBefore = { ...h.state.selectedElementIds };
+    const undoStackBefore = [...API.getUndoStack()];
+    const redoStackBefore = [...API.getRedoStack()];
+
     fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
 
     const inputs = Array.from(
@@ -360,18 +431,13 @@ describe("actionDuplicateSelection", () => {
     fireEvent.change(inputs[0], { target: { value: "2" } });
     fireEvent.change(inputs[1], { target: { value: "50" } });
     fireEvent.change(inputs[2], { target: { value: "10" } });
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
-
-    expect(
-      h.elements.filter((element) => (element as any)[ORIG_ID] === rectangle.id),
-    ).toHaveLength(2);
-
-    fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
-    expect(
-      h.elements.filter((element) => (element as any)[ORIG_ID] === rectangle.id),
-    ).toHaveLength(2);
+    expect(h.elements).toEqual(elementsBefore);
+    expect(h.elements).toHaveLength(1);
+    expect(h.state.selectedElementIds).toEqual(selectedElementIdsBefore);
+    expect(API.getUndoStack()).toEqual(undoStackBefore);
+    expect(API.getRedoStack()).toEqual(redoStackBefore);
   });
 
   describe("duplicating frames", () => {
