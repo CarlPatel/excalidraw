@@ -433,15 +433,16 @@ describe("repeated duplication", () => {
     count: number,
     offsetX: number,
     offsetY: number,
+    idsOfElementsToDuplicate = new Map(
+      elements.map((element) => [element.id, element]),
+    ),
   ) =>
     repeatDuplicateElements({
       elements,
       count,
       offsetX,
       offsetY,
-      idsOfElementsToDuplicate: new Map(
-        elements.map((element) => [element.id, element]),
-      ),
+      idsOfElementsToDuplicate,
       appState: {
         editingGroupId: null,
         selectedGroupIds: {},
@@ -608,6 +609,54 @@ describe("repeated duplication", () => {
     expect(rectangleCopy.groupIds).not.toEqual(fixture.rectangle.groupIds);
     expect((labelCopy as any).containerId).toBe(rectangleCopy.id);
     expect((labelCopy as any).frameId).toBe(frameCopy.id);
+  });
+
+  it("excludes repeated arrows with an endpoint outside the selection", () => {
+    const selectedRectangle = API.createElement({
+      type: "rectangle",
+      id: "selectedRectangle",
+      boundElements: [{ id: "arrow", type: "arrow" }],
+    });
+    const externalRectangle = API.createElement({
+      type: "rectangle",
+      id: "externalRectangle",
+      x: 200,
+    });
+    const arrow = API.createElement({
+      type: "arrow",
+      id: "arrow",
+      startBinding: {
+        elementId: selectedRectangle.id,
+        fixedPoint: [0.5, 0.5],
+        mode: "orbit",
+      },
+      endBinding: {
+        elementId: externalRectangle.id,
+        fixedPoint: [0.5, 0.5],
+        mode: "orbit",
+      },
+    });
+
+    const result = repeat(
+      [selectedRectangle, externalRectangle, arrow],
+      2,
+      100,
+      0,
+      new Map<ExcalidrawElement["id"], ExcalidrawElement>([
+        [selectedRectangle.id, selectedRectangle],
+        [arrow.id, arrow],
+      ]),
+    );
+
+    if (!result) {
+      throw new Error("Expected valid repeat duplication result");
+    }
+
+    expect(
+      result.duplicatedElements.filter(
+        (element) => (element as any)[ORIG_ID] === arrow.id,
+      ),
+    ).toHaveLength(0);
   });
 
   it("keeps repeated labels, groups, and bindings within each copy", () => {

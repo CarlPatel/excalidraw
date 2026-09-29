@@ -30,6 +30,7 @@ import { bumpVersion } from "./mutateElement";
 
 import {
   hasBoundTextElement,
+  isBindingElement,
   isBoundToContainer,
   isFrameLikeElement,
 } from "./typeChecks";
@@ -485,12 +486,34 @@ export const repeatDuplicateElements = (
   const duplicatedElements: NonDeletedExcalidrawElement[] = [];
   let elementsWithDuplicates: ExcalidrawElement[] = [];
   const duplicatedIds = new Set<ExcalidrawElement["id"]>();
+  const idsOfElementsToDuplicate = new Map(opts.idsOfElementsToDuplicate);
+
+  for (const groupId of Object.keys(opts.appState.selectedGroupIds)) {
+    opts.elements
+      .filter((element) => element.groupIds?.includes(groupId))
+      .forEach((element) => idsOfElementsToDuplicate.set(element.id, element));
+  }
+
+  for (const element of opts.elements) {
+    if (!idsOfElementsToDuplicate.has(element.id) || !isBindingElement(element)) {
+      continue;
+    }
+
+    const bindingIds = [
+      element.startBinding?.elementId,
+      element.endBinding?.elementId,
+    ].filter((id): id is ExcalidrawElement["id"] => id != null);
+
+    if (bindingIds.some((id) => !idsOfElementsToDuplicate.has(id))) {
+      idsOfElementsToDuplicate.delete(element.id);
+    }
+  }
 
   for (let copyIndex = 0; copyIndex < opts.count; copyIndex++) {
     const result = duplicateElements({
       type: "in-place",
       elements: opts.elements,
-      idsOfElementsToDuplicate: new Map(opts.idsOfElementsToDuplicate),
+      idsOfElementsToDuplicate: new Map(idsOfElementsToDuplicate),
       appState: opts.appState,
       randomizeSeed: opts.randomizeSeed,
       overrides: (data) => {

@@ -46,6 +46,105 @@ describe("actionDuplicateSelection", () => {
     assertSelectedElements([duplicate]);
   });
 
+  it("matches normal duplication for count one with the default offset", () => {
+    const createFixture = () => {
+      const frame = API.createElement({ type: "frame", id: "frame" });
+      const rectangle = API.createElement({
+        type: "rectangle",
+        id: "rectangle",
+        frameId: frame.id,
+        boundElements: [{ id: "label", type: "text" }],
+      });
+      const label = API.createElement({
+        type: "text",
+        id: "label",
+        containerId: rectangle.id,
+        frameId: frame.id,
+      });
+      return { elements: [frame, rectangle, label], rectangle, label };
+    };
+
+    const run = (
+      formData: null | {
+        count: number;
+        offsetX: number;
+        offsetY: number;
+      },
+    ) => {
+      const fixture = createFixture();
+      API.setElements(fixture.elements);
+      API.setSelectedElements([fixture.rectangle]);
+
+      act(() => {
+        h.app.actionManager.executeAction(
+          actionDuplicateSelection,
+          "api",
+          formData,
+        );
+      });
+
+      const rectangleCopy = getCloneByOrigId(fixture.rectangle.id);
+      const labelCopy = getCloneByOrigId(fixture.label.id);
+      return {
+        x: rectangleCopy.x,
+        y: rectangleCopy.y,
+        frameId: rectangleCopy.frameId,
+        labelContainerId: (labelCopy as any).containerId === rectangleCopy.id,
+        labelFrameId: (labelCopy as any).frameId === rectangleCopy.frameId,
+        selectedTypes: API.getSelectedElements().map((element) => element.type),
+      };
+    };
+
+    const normal = run(null);
+    const repeated = run({
+      count: 1,
+      offsetX: DEFAULT_GRID_SIZE / 2,
+      offsetY: DEFAULT_GRID_SIZE / 2,
+    });
+
+    expect(repeated).toEqual(normal);
+  });
+
+  it("preserves count-one relationships with a custom offset", () => {
+    const frame = API.createElement({ type: "frame", id: "frame" });
+    const rectangle = API.createElement({
+      type: "rectangle",
+      id: "rectangle",
+      x: 10,
+      y: 20,
+      frameId: frame.id,
+      boundElements: [{ id: "label", type: "text" }],
+    });
+    const label = API.createElement({
+      type: "text",
+      id: "label",
+      containerId: rectangle.id,
+      frameId: frame.id,
+    });
+
+    API.setElements([frame, rectangle, label]);
+    API.setSelectedElements([rectangle]);
+
+    act(() => {
+      h.app.actionManager.executeAction(actionDuplicateSelection, "api", {
+        count: 1,
+        offsetX: -25,
+        offsetY: 30,
+      });
+    });
+
+    const rectangleCopy = getCloneByOrigId(rectangle.id);
+    const labelCopy = getCloneByOrigId(label.id);
+    expect(rectangleCopy).toMatchObject({
+      x: rectangle.x - 25,
+      y: rectangle.y + 30,
+      frameId: rectangle.frameId,
+    });
+    expect((labelCopy as any).containerId).toBe(rectangleCopy.id);
+    expect((labelCopy as any).frameId).toBe(rectangleCopy.frameId);
+    assertSelectedElements([rectangleCopy]);
+  });
+
   it("regenerates one group id for a duplicated group", () => {
     const rectangle1 = API.createElement({
       type: "rectangle",
