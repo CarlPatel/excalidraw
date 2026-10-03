@@ -191,6 +191,13 @@ body.excalidraw-cursor-resize * {
       column-gap: 0.5rem;
       row-gap: 0.5rem;
 
+      &.duplicate-selection-actions button {
+        --button-width: auto;
+        --button-height: auto;
+        min-width: 4.5rem;
+        white-space: nowrap;
+      }
+
       label {
         font-size: 0.75rem;
       }

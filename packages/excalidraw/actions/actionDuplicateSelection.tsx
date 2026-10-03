@@ -25,7 +25,7 @@ import { CaptureUpdateAction } from "@excalidraw/element";
 
 import { IconButton } from "../components/IconButton";
 import { Button } from "../components/Button";
-import { checkIcon, CloseIcon, DuplicateIcon } from "../components/icons";
+import { DuplicateIcon } from "../components/icons";
 import { TextField } from "../components/TextField";
 
 import { t } from "../i18n";
@@ -86,12 +86,12 @@ const RepeatDuplicateForm = ({
             onChange={setOffsetY}
           />
         </div>
-        <div className="buttonList">
-          <Button type="submit" onSelect={() => {}} aria-label={t("buttons.submit")}>
-            {checkIcon}
+        <div className="buttonList duplicate-selection-actions">
+          <Button type="submit" onSelect={() => {}}>
+            {t("buttons.submit")}
           </Button>
-          <Button onSelect={onCancel} aria-label={t("buttons.cancel")}>
-            {CloseIcon}
+          <Button type="button" onSelect={onCancel}>
+            {t("buttons.cancel")}
           </Button>
         </div>
       </fieldset>
