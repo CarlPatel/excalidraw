@@ -210,6 +210,7 @@ export const SelectedShapeActions = ({
           <legend>{t("labels.actions")}</legend>
           <div className="buttonList">
             {renderAction("duplicateSelection")}
+            {renderAction("pasteSelectedStyles")}
             {renderAction("deleteSelectedElements")}
             {renderAction("group")}
             {renderAction("ungroup")}
