@@ -1,6 +1,7 @@
 import { pointFrom } from "@excalidraw/math";
 
 import {
+  DEFAULT_GRID_SIZE,
   FONT_FAMILY,
   ORIG_ID,
   ROUNDNESS,
@@ -29,9 +30,13 @@ import {
   deepCopyElement,
   duplicateElement,
   duplicateElements,
+  repeatDuplicateElements,
 } from "../src/duplicate";
 
-import type { ExcalidrawLinearElement } from "../src/types";
+import type {
+  ExcalidrawElement,
+  ExcalidrawLinearElement,
+} from "../src/types";
 
 const { h } = window;
 const mouse = new Pointer("mouse");
@@ -418,6 +423,368 @@ describe("duplicating multiple elements", () => {
 
       expect(typeof clonedRectangle1.groupIds[0]).toBe("string");
       expect(rectangle1.groupIds[0]).not.toBe(clonedRectangle1.groupIds[0]);
+    });
+  });
+});
+
+describe("repeated duplication", () => {
+  const repeat = (
+    elements: readonly ExcalidrawElement[],
+    count: number,
+    offsetX: number,
+    offsetY: number,
+    idsOfElementsToDuplicate = new Map(
+      elements.map((element) => [element.id, element]),
+    ),
+  ) =>
+    repeatDuplicateElements({
+      elements,
+      count,
+      offsetX,
+      offsetY,
+      idsOfElementsToDuplicate,
+      appState: {
+        editingGroupId: null,
+        selectedGroupIds: {},
+      },
+    });
+
+  const createRelationshipFixture = () => {
+    const frame = API.createElement({
+      type: "frame",
+      id: "frame",
+      groupIds: ["group"],
+    });
+    const rectangle = API.createElement({
+      type: "rectangle",
+      id: "rectangle",
+      x: 10,
+      y: 20,
+      frameId: frame.id,
+      groupIds: ["group"],
+      boundElements: [{ id: "label", type: "text" }],
+    });
+    const label = API.createElement({
+      type: "text",
+      id: "label",
+      containerId: rectangle.id,
+      frameId: frame.id,
+      groupIds: ["group"],
+    });
+
+    return { elements: [frame, rectangle, label], frame, rectangle, label };
+  };
+
+  const duplicateNormally = (
+    elements: readonly ExcalidrawElement[],
+    offsetX: number,
+    offsetY: number,
+  ) =>
+    duplicateElements({
+      type: "in-place",
+      elements,
+      idsOfElementsToDuplicate: new Map(
+        elements.map((element) => [element.id, element]),
+      ),
+      appState: {
+        editingGroupId: null,
+        selectedGroupIds: {},
+      },
+      overrides: ({ origElement, origIdToDuplicateId }) => ({
+        x: origElement.x + offsetX,
+        y: origElement.y + offsetY,
+        frameId:
+          (origElement.frameId && origIdToDuplicateId.get(origElement.frameId)) ??
+          origElement.frameId,
+      }),
+    });
+
+  const relationshipSignature = (
+    elements: readonly ExcalidrawElement[],
+    copies: readonly ExcalidrawElement[],
+  ) => {
+    const copyOriginById = new Map(
+      copies.map((element) => [element.id, (element as any)[ORIG_ID]]),
+    );
+    const normalizedGroupIds = new Map<string, string>();
+
+    return copies.map((element) => ({
+      type: element.type,
+      x: element.x,
+      y: element.y,
+      groupIds: element.groupIds.map((groupId) => {
+        if (!normalizedGroupIds.has(groupId)) {
+          normalizedGroupIds.set(groupId, `group${normalizedGroupIds.size}`);
+        }
+        return normalizedGroupIds.get(groupId);
+      }),
+      containerId:
+        (element as any).containerId == null
+          ? null
+          : copyOriginById.get((element as any).containerId),
+      frameId:
+        element.frameId == null
+          ? null
+          : copyOriginById.get(element.frameId),
+      boundElements:
+        element.boundElements?.map((binding) => ({
+          type: binding.type,
+          id: copyOriginById.get(binding.id),
+        })) ?? null,
+      originalExists: elements.some(
+        (originalElement) =>
+          originalElement.id === (element as any)[ORIG_ID],
+      ),
+    }));
+  };
+
+  it.each([
+    [0, 1, 1],
+    [21, 1, 1],
+    [1.5, 1, 1],
+    [1, Number.NaN, 1],
+    [1, 1, Number.POSITIVE_INFINITY],
+  ])(
+    "rejects invalid repeat inputs: %s, %s, %s",
+    (count, offsetX, offsetY) => {
+      const rectangle = API.createElement({ type: "rectangle" });
+
+      expect(repeat([rectangle], count, offsetX, offsetY)).toBe(false);
+    },
+  );
+
+  it("accepts the maximum repeat count", () => {
+    const rectangle = API.createElement({ type: "rectangle" });
+    const result = repeat([rectangle], 20, 1, 1);
+
+    if (!result) {
+      throw new Error("Expected count 20 to be accepted");
+    }
+
+    expect(result.duplicatedElements).toHaveLength(20);
+    expect(new Set(result.duplicatedElements.map((element) => element.id)).size).toBe(
+      20,
+    );
+  });
+
+  it("matches normal duplication for count one with the default offset", () => {
+    const fixture = createRelationshipFixture();
+    const normalResult = duplicateNormally(
+      fixture.elements,
+      DEFAULT_GRID_SIZE / 2,
+      DEFAULT_GRID_SIZE / 2,
+    );
+    const repeatResult = repeat(
+      fixture.elements,
+      1,
+      DEFAULT_GRID_SIZE / 2,
+      DEFAULT_GRID_SIZE / 2,
+    );
+
+    if (!repeatResult) {
+      throw new Error("Expected valid repeat duplication result");
+    }
+
+    expect(
+      relationshipSignature(
+        fixture.elements,
+        repeatResult.duplicatedElements,
+      ),
+    ).toEqual(
+      relationshipSignature(fixture.elements, normalResult.duplicatedElements),
+    );
+  });
+
+  it("preserves relationships for count one with a custom offset", () => {
+    const fixture = createRelationshipFixture();
+    const result = repeat(fixture.elements, 1, -25, 30);
+
+    if (!result) {
+      throw new Error("Expected valid repeat duplication result");
+    }
+
+    const frameCopy = result.duplicatedElements.find(
+      (element) => (element as any)[ORIG_ID] === fixture.frame.id,
+    )!;
+    const rectangleCopy = result.duplicatedElements.find(
+      (element) => (element as any)[ORIG_ID] === fixture.rectangle.id,
+    )!;
+    const labelCopy = result.duplicatedElements.find(
+      (element) => (element as any)[ORIG_ID] === fixture.label.id,
+    )!;
+
+    expect(rectangleCopy).toMatchObject({
+      x: fixture.rectangle.x - 25,
+      y: fixture.rectangle.y + 30,
+      frameId: frameCopy.id,
+    });
+    expect(rectangleCopy.id).not.toBe(fixture.rectangle.id);
+    expect(rectangleCopy.groupIds).toEqual(labelCopy.groupIds);
+    expect(rectangleCopy.groupIds).not.toEqual(fixture.rectangle.groupIds);
+    expect((labelCopy as any).containerId).toBe(rectangleCopy.id);
+    expect((labelCopy as any).frameId).toBe(frameCopy.id);
+  });
+
+  it("excludes repeated arrows with an endpoint outside the selection", () => {
+    const selectedRectangle = API.createElement({
+      type: "rectangle",
+      id: "selectedRectangle",
+      boundElements: [{ id: "arrow", type: "arrow" }],
+    });
+    const externalRectangle = API.createElement({
+      type: "rectangle",
+      id: "externalRectangle",
+      x: 200,
+    });
+    const arrow = API.createElement({
+      type: "arrow",
+      id: "arrow",
+      startBinding: {
+        elementId: selectedRectangle.id,
+        fixedPoint: [0.5, 0.5],
+        mode: "orbit",
+      },
+      endBinding: {
+        elementId: externalRectangle.id,
+        fixedPoint: [0.5, 0.5],
+        mode: "orbit",
+      },
+    });
+
+    const result = repeat(
+      [selectedRectangle, externalRectangle, arrow],
+      2,
+      100,
+      0,
+      new Map<ExcalidrawElement["id"], ExcalidrawElement>([
+        [selectedRectangle.id, selectedRectangle],
+        [arrow.id, arrow],
+      ]),
+    );
+
+    if (!result) {
+      throw new Error("Expected valid repeat duplication result");
+    }
+
+    expect(
+      result.duplicatedElements.filter(
+        (element) => (element as any)[ORIG_ID] === arrow.id,
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("keeps repeated labels, groups, and bindings within each copy", () => {
+    const rectangle1 = API.createElement({
+      type: "rectangle",
+      id: "rectangle1",
+      groupIds: ["group1"],
+      boundElements: [
+        { id: "label1", type: "text" },
+        { id: "arrow", type: "arrow" },
+      ],
+    });
+    const label1 = API.createElement({
+      type: "text",
+      id: "label1",
+      containerId: rectangle1.id,
+      groupIds: ["group1"],
+    });
+    const rectangle2 = API.createElement({
+      type: "rectangle",
+      id: "rectangle2",
+      x: 200,
+      groupIds: ["group1"],
+      boundElements: [{ id: "arrow", type: "arrow" }],
+    });
+    const arrow = API.createElement({
+      type: "arrow",
+      id: "arrow",
+      startBinding: {
+        elementId: rectangle1.id,
+        fixedPoint: [0.5, 0.5],
+        mode: "orbit",
+      },
+      endBinding: {
+        elementId: rectangle2.id,
+        fixedPoint: [0.5, 0.5],
+        mode: "orbit",
+      },
+    });
+
+    const result = repeat(
+      [rectangle1, label1, rectangle2, arrow],
+      2,
+      150,
+      25,
+    );
+
+    if (!result) {
+      throw new Error("Expected valid repeat duplication result");
+    }
+
+    const copies = result.duplicatedElements;
+    expect(new Set(copies.map((element) => element.id)).size).toBe(
+      copies.length,
+    );
+
+    const rectangleCopies = copies.filter(
+      (element) => (element as any)[ORIG_ID] === rectangle1.id,
+    );
+    const labelCopies = copies.filter(
+      (element) => (element as any)[ORIG_ID] === label1.id,
+    );
+    const arrowCopies = copies.filter(
+      (element) => (element as any)[ORIG_ID] === arrow.id,
+    );
+
+    expect(rectangleCopies).toHaveLength(2);
+    expect(labelCopies).toHaveLength(2);
+    expect(arrowCopies).toHaveLength(2);
+
+    const rectangle2Copies = copies.filter(
+      (element) => (element as any)[ORIG_ID] === rectangle2.id,
+    );
+    rectangleCopies.forEach((rectangleCopy, index) => {
+      expect(rectangleCopy.groupIds).toEqual(rectangle2Copies[index].groupIds);
+      expect(rectangleCopy.groupIds).not.toEqual(rectangle1.groupIds);
+      expect((labelCopies[index] as any).containerId).toBe(rectangleCopy.id);
+      expect((arrowCopies[index] as any).startBinding?.elementId).toBe(
+        rectangleCopy.id,
+      );
+      expect((arrowCopies[index] as any).endBinding?.elementId).toBe(
+        rectangle2Copies[index].id,
+      );
+    });
+  });
+
+  it("preserves frame membership for every repeated frame copy", () => {
+    const frame = API.createElement({
+      type: "frame",
+      id: "frame",
+    });
+    const rectangle = API.createElement({
+      type: "rectangle",
+      id: "rectangle",
+      frameId: frame.id,
+    });
+
+    const result = repeat([frame, rectangle], 2, 100, 0);
+
+    if (!result) {
+      throw new Error("Expected valid repeat duplication result");
+    }
+
+    const frameCopies = result.duplicatedElements.filter(
+      (element) => (element as any)[ORIG_ID] === frame.id,
+    );
+    const rectangleCopies = result.duplicatedElements.filter(
+      (element) => (element as any)[ORIG_ID] === rectangle.id,
+    );
+
+    expect(frameCopies).toHaveLength(2);
+    expect(rectangleCopies).toHaveLength(2);
+    rectangleCopies.forEach((rectangleCopy, index) => {
+      expect(rectangleCopy.frameId).toBe(frameCopies[index].id);
     });
   });
 });

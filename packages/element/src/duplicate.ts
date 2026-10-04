@@ -30,6 +30,7 @@ import { bumpVersion } from "./mutateElement";
 
 import {
   hasBoundTextElement,
+  isBindingElement,
   isBoundToContainer,
   isFrameLikeElement,
 } from "./typeChecks";
@@ -431,6 +432,176 @@ export const duplicateElements = (
     elementsWithDuplicates,
     origIdToDuplicateId,
   };
+};
+
+export const MAX_REPEAT_DUPLICATE_COUNT = 20;
+
+export type RepeatDuplicateElementsOptions = {
+  elements: readonly ExcalidrawElement[];
+  count: number;
+  offsetX: number;
+  offsetY: number;
+  randomizeSeed?: boolean;
+  idsOfElementsToDuplicate: Map<
+    ExcalidrawElement["id"],
+    ExcalidrawElement
+  >;
+  appState: {
+    editingGroupId: AppState["editingGroupId"];
+    selectedGroupIds: AppState["selectedGroupIds"];
+  };
+  overrides?: (data: {
+    duplicateElement: ExcalidrawElement;
+    origElement: ExcalidrawElement;
+    origIdToDuplicateId: Map<
+      ExcalidrawElement["id"],
+      ExcalidrawElement["id"]
+    >;
+    copyIndex: number;
+  }) => Partial<ExcalidrawElement>;
+};
+
+export type RepeatDuplicateElementsResult = {
+  duplicatedElements: NonDeletedExcalidrawElement[];
+  elementsWithDuplicates: ExcalidrawElement[];
+};
+
+/**
+ * Repeats in-place duplication while keeping each copy's relationship maps
+ * independent from every other copy.
+ */
+export const repeatDuplicateElements = (
+  opts: RepeatDuplicateElementsOptions,
+): RepeatDuplicateElementsResult | false => {
+  if (
+    !Number.isInteger(opts.count) ||
+    opts.count < 1 ||
+    opts.count > MAX_REPEAT_DUPLICATE_COUNT ||
+    !Number.isFinite(opts.offsetX) ||
+    !Number.isFinite(opts.offsetY)
+  ) {
+    return false;
+  }
+
+  const duplicatedElements: NonDeletedExcalidrawElement[] = [];
+  let elementsWithDuplicates: ExcalidrawElement[] = [];
+  const duplicatedIds = new Set<ExcalidrawElement["id"]>();
+  const idsOfElementsToDuplicate = new Map(opts.idsOfElementsToDuplicate);
+
+  for (const groupId of Object.keys(opts.appState.selectedGroupIds)) {
+    opts.elements
+      .filter((element) => element.groupIds?.includes(groupId))
+      .forEach((element) => idsOfElementsToDuplicate.set(element.id, element));
+  }
+
+  for (const element of opts.elements) {
+    if (!idsOfElementsToDuplicate.has(element.id) || !isBindingElement(element)) {
+      continue;
+    }
+
+    const bindingIds = [
+      element.startBinding?.elementId,
+      element.endBinding?.elementId,
+    ].filter((id): id is ExcalidrawElement["id"] => id != null);
+
+    if (bindingIds.some((id) => !idsOfElementsToDuplicate.has(id))) {
+      idsOfElementsToDuplicate.delete(element.id);
+    }
+  }
+
+  for (let copyIndex = 0; copyIndex < opts.count; copyIndex++) {
+    const result = duplicateElements({
+      type: "in-place",
+      elements: opts.elements,
+      idsOfElementsToDuplicate: new Map(idsOfElementsToDuplicate),
+      appState: opts.appState,
+      randomizeSeed: opts.randomizeSeed,
+      overrides: (data) => {
+        const duplicateFrameId =
+          data.origElement.frameId &&
+          data.origIdToDuplicateId.get(data.origElement.frameId);
+
+        return {
+          x: data.origElement.x + opts.offsetX * (copyIndex + 1),
+          y: data.origElement.y + opts.offsetY * (copyIndex + 1),
+          frameId: duplicateFrameId ?? data.origElement.frameId,
+          ...opts.overrides?.({ ...data, copyIndex }),
+        };
+      },
+    });
+
+    duplicatedElements.push(...result.duplicatedElements);
+
+    if (copyIndex === 0) {
+      elementsWithDuplicates = result.elementsWithDuplicates;
+      result.duplicatedElements.forEach((element) => {
+        duplicatedIds.add(element.id);
+      });
+      continue;
+    }
+
+    const copyIds = new Set(
+      result.duplicatedElements.map((element) => element.id),
+    );
+    const copyBlocks: {
+      anchorId: ExcalidrawElement["id"] | null;
+      elements: ExcalidrawElement[];
+    }[] = [];
+    let previousElement: ExcalidrawElement | undefined;
+    let currentBlock:
+      | {
+          anchorId: ExcalidrawElement["id"] | null;
+          elements: ExcalidrawElement[];
+        }
+      | undefined;
+
+    for (const element of result.elementsWithDuplicates) {
+      if (copyIds.has(element.id)) {
+        currentBlock ??= {
+          anchorId: previousElement?.id ?? null,
+          elements: [],
+        };
+        currentBlock.elements.push(element);
+      } else {
+        if (currentBlock) {
+          copyBlocks.push(currentBlock);
+          currentBlock = undefined;
+        }
+        previousElement = element;
+      }
+    }
+    if (currentBlock) {
+      copyBlocks.push(currentBlock);
+    }
+
+    for (const copyBlock of copyBlocks) {
+      let insertionIndex = copyBlock.anchorId
+        ? findLastIndex(
+            elementsWithDuplicates,
+            (element) => element.id === copyBlock.anchorId,
+          )
+        : elementsWithDuplicates.length - 1;
+
+      while (
+        insertionIndex + 1 < elementsWithDuplicates.length &&
+        duplicatedIds.has(elementsWithDuplicates[insertionIndex + 1].id)
+      ) {
+        insertionIndex++;
+      }
+
+      elementsWithDuplicates.splice(
+        insertionIndex + 1,
+        0,
+        ...copyBlock.elements,
+      );
+    }
+
+    result.duplicatedElements.forEach((element) => {
+      duplicatedIds.add(element.id);
+    });
+  }
+
+  return { duplicatedElements, elementsWithDuplicates };
 };
 
 // Simplified deep clone for the purpose of cloning ExcalidrawElement.

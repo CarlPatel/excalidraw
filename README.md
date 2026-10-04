@@ -94,6 +94,31 @@ yarn add react react-dom @excalidraw/excalidraw
 
 Check out our [documentation](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/installation) for more details!
 
+## Issue #6 — Duplicate a Selection Repeatedly
+**Owner:** @CarlPatel
+
+### Change
+Added repeat duplication to the existing Duplicate Selection action. Users can specify a copy count and horizontal/vertical offsets. The implementation reuses the existing `duplicateElements()` logic independently for each copy so IDs and relationships are handled per copy, then combines all copies into one scene update.
+
+### Checks
+Added tests covering:
+- Count validation and the 20 copy limit
+- Count = 1 matching existing duplication behavior
+- Custom X/Y offsets
+- Unique IDs and per-copy relationship mappings
+- Groups and bound text
+- Internal connector bindings and exclusion of connectors with external endpoints
+- Frame membership and selected-frame duplication
+- Duplicate action being recorded as one undo/redo operation
+
+All added checks pass
+
+### Changes from RFC
+The RFC requested that frames be excluded. The implementation instead preserves Excalidraw's existing frame duplication behavior. This allows for frames to be repeated with their children such that duplicated children of an unselected frame keep their membership of the original frame.
+
+### Remaining
+Only remaining improvement is user facing validation/error feedback for invalid form values. The duplication helper rejects invalid values, but the form does not display the failure to the user.
+
 ## Contributing
 
 - Missing something or found a bug? [Report here](https://github.com/excalidraw/excalidraw/issues).

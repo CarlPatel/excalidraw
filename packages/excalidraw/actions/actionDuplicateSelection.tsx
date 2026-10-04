@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import {
   DEFAULT_GRID_SIZE,
   KEYS,
@@ -17,11 +19,14 @@ import {
 import { syncMovedIndices } from "@excalidraw/element";
 
 import { duplicateElements } from "@excalidraw/element";
+import { repeatDuplicateElements } from "@excalidraw/element";
 
 import { CaptureUpdateAction } from "@excalidraw/element";
 
 import { IconButton } from "../components/IconButton";
+import { Button } from "../components/Button";
 import { DuplicateIcon } from "../components/icons";
+import { TextField } from "../components/TextField";
 
 import { t } from "../i18n";
 import { isSomeElementSelected } from "../scene";
@@ -31,7 +36,72 @@ import { useStylesPanelMode } from "../components/App";
 
 import { register } from "./register";
 
-export const actionDuplicateSelection = register({
+type RepeatDuplicateSelectionData = {
+  count: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+const RepeatDuplicateForm = ({
+  onCancel,
+  onSubmit,
+}: {
+  onCancel: () => void;
+  onSubmit: (data: RepeatDuplicateSelectionData) => void;
+}) => {
+  const [count, setCount] = useState("1");
+  const [offsetX, setOffsetX] = useState(String(DEFAULT_GRID_SIZE / 2));
+  const [offsetY, setOffsetY] = useState(String(DEFAULT_GRID_SIZE / 2));
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit({
+          count: Number(count),
+          offsetX: Number(offsetX),
+          offsetY: Number(offsetY),
+        });
+      }}
+    >
+      <fieldset>
+        <legend>{t("labels.duplicateSelection")}</legend>
+        <div className="buttonList">
+          <TextField
+            type="number"
+            label={t("labels.duplicateCount")}
+            value={count}
+            onChange={setCount}
+          />
+          <TextField
+            type="number"
+            label={t("labels.duplicateOffsetX")}
+            value={offsetX}
+            onChange={setOffsetX}
+          />
+          <TextField
+            type="number"
+            label={t("labels.duplicateOffsetY")}
+            value={offsetY}
+            onChange={setOffsetY}
+          />
+        </div>
+        <div className="buttonList duplicate-selection-actions">
+          <Button type="submit" onSelect={() => {}}>
+            {t("buttons.submit")}
+          </Button>
+          <Button type="button" onSelect={onCancel}>
+            {t("buttons.cancel")}
+          </Button>
+        </div>
+      </fieldset>
+    </form>
+  );
+};
+
+export const actionDuplicateSelection = register<
+  RepeatDuplicateSelectionData | null
+>({
   name: "duplicateSelection",
   label: "labels.duplicateSelection",
   icon: DuplicateIcon,
@@ -60,27 +130,52 @@ export const actionDuplicateSelection = register({
       }
     }
 
-    let { duplicatedElements, elementsWithDuplicates } = duplicateElements({
-      type: "in-place",
-      elements,
-      idsOfElementsToDuplicate: arrayToMap(
-        getSelectedElements(elements, appState, {
-          includeBoundTextElement: true,
-          includeElementsInFrames: true,
-        }),
-      ),
-      appState,
-      randomizeSeed: true,
-      overrides: ({ origElement, origIdToDuplicateId }) => {
-        const duplicateFrameId =
-          origElement.frameId && origIdToDuplicateId.get(origElement.frameId);
-        return {
-          x: origElement.x + DEFAULT_GRID_SIZE / 2,
-          y: origElement.y + DEFAULT_GRID_SIZE / 2,
-          frameId: duplicateFrameId ?? origElement.frameId,
-        };
-      },
-    });
+    const idsOfElementsToDuplicate = arrayToMap(
+      getSelectedElements(elements, appState, {
+        includeBoundTextElement: true,
+        includeElementsInFrames: true,
+      }),
+    );
+
+    const result = formData
+      ? repeatDuplicateElements({
+          elements,
+          idsOfElementsToDuplicate,
+          appState,
+          randomizeSeed: true,
+          ...formData,
+          overrides: ({ origElement, origIdToDuplicateId }) => {
+            const duplicateFrameId =
+              origElement.frameId &&
+              origIdToDuplicateId.get(origElement.frameId);
+            return {
+              frameId: duplicateFrameId ?? origElement.frameId,
+            };
+          },
+        })
+      : duplicateElements({
+          type: "in-place",
+          elements,
+          idsOfElementsToDuplicate,
+          appState,
+          randomizeSeed: true,
+          overrides: ({ origElement, origIdToDuplicateId }) => {
+            const duplicateFrameId =
+              origElement.frameId &&
+              origIdToDuplicateId.get(origElement.frameId);
+            return {
+              x: origElement.x + DEFAULT_GRID_SIZE / 2,
+              y: origElement.y + DEFAULT_GRID_SIZE / 2,
+              frameId: duplicateFrameId ?? origElement.frameId,
+            };
+          },
+        });
+
+    if (result === false) {
+      return false;
+    }
+
+    let { duplicatedElements, elementsWithDuplicates } = result;
 
     if (app.props.onDuplicate && elementsWithDuplicates) {
       const mappedElements = app.props.onDuplicate(
@@ -111,6 +206,19 @@ export const actionDuplicateSelection = register({
   keyTest: (event) => event[KEYS.CTRL_OR_CMD] && event.key === KEYS.D,
   PanelComponent: ({ elements, appState, updateData, app }) => {
     const isMobile = useStylesPanelMode() === "mobile";
+    const [isRepeatFormOpen, setIsRepeatFormOpen] = useState(false);
+
+    if (isRepeatFormOpen) {
+      return (
+        <RepeatDuplicateForm
+          onCancel={() => setIsRepeatFormOpen(false)}
+          onSubmit={(data) => {
+            setIsRepeatFormOpen(false);
+            updateData(data);
+          }}
+        />
+      );
+    }
 
     return (
       <IconButton
@@ -120,7 +228,7 @@ export const actionDuplicateSelection = register({
           "CtrlOrCmd+D",
         )}`}
         aria-label={t("labels.duplicateSelection")}
-        onClick={() => updateData(null)}
+        onClick={() => setIsRepeatFormOpen(true)}
         disabled={
           !isSomeElementSelected(getNonDeletedElements(elements), appState)
         }
