@@ -119,6 +119,43 @@ The RFC requested that frames be excluded. The implementation instead preserves 
 ### Remaining
 Only remaining improvement is user facing validation/error feedback for invalid form values. The duplication helper rejects invalid values, but the form does not display the failure to the user.
 
+## Issue #3 — Paste only selected style properties
+**Owner:** @ItsAkilesh
+
+### Change
+Copy styles still works the same way. Paste styles still applies every style at once, on the same shortcut.
+
+There is also a "Paste selected styles" button in the properties panel. It opens three checkboxes: colors, stroke settings, and text formatting. Submit pastes only the ones that are still checked. Submit stays disabled if all three are unchecked.
+
+Both commands go through `pasteStyles()` in `packages/excalidraw/actions/actionStyles.ts`. Ordinary paste calls it with all three categories. The new action (`actionPasteSelectedStyles`) calls it with the checked ones. Bound labels, frames, arrows, and sticky notes still use that same path, so the old compatibility rules were not copied into a second implementation.
+
+### Checks
+Tests are in `packages/excalidraw/tests/pasteSelectedStyles.test.tsx`. They cover:
+
+- Pasting all three categories matches ordinary paste styles on the same fixture, copying from a labelled rectangle and from an arrow. The fixture includes text, an arrow, a frame, a sticky note, and bound labels.
+- Colors change stroke and background color only.
+- Stroke settings change stroke props and leave colors alone.
+- Text formatting changes font props and leaves colors and stroke alone.
+- A mixed shape and text selection.
+- Text-only paste leaves a shape unchanged.
+- A frame still gets no fill and no roundness.
+- Arrowheads stay put when the copied element is not an arrow.
+- A sticky note stays solid when stroke settings are pasted.
+- A bound label takes its color and font from the copied label.
+- An empty choice changes nothing and does not add an undo step.
+- One undo puts the selection's appearance back.
+- The panel pastes only the categories left checked, and disables submit when none are checked.
+
+I have not re-run these while writing this section.
+
+### Changes from RFC
+The RFC said the options control would be in the command palette or the context menu. I put it in the properties panel instead, as a button that opens the three checkboxes. Ordinary paste is still Ctrl/Cmd+Alt+V, and it still calls the shared helper with every category on. There is no command-palette or context-menu entry, so those tests were left alone.
+
+The category split is the one in the RFC. Colors are stroke and background. Stroke settings include width, style, fill, opacity, roughness, roundness, and arrowheads. Text formatting is font size, family, alignment, and line height. The RFC described one helper that also picks the source element, including bound text. Source selection stayed in `pasteStyles()`. `applyStylesToElement()` only applies the chosen categories.
+
+### Remaining
+The all-categories check copies from a labelled rectangle and from an arrow. It does not also copy from a text element, a frame, or a sticky note. The button is disabled when nothing has been copied, and there is no separate message for that. The RFC also called for the existing copy/paste styles, sticky note, context menu, and command palette tests, plus a type check. Those results are not recorded here.
+
 ## Contributing
 
 - Missing something or found a bug? [Report here](https://github.com/excalidraw/excalidraw/issues).
