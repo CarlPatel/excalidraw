@@ -6,19 +6,30 @@ import { KEYS } from "@excalidraw/common";
 
 import { actionToggleTheme } from "../actions";
 import { getShortcutFromShortcutName } from "../actions/shortcuts";
+import { useShortcutBindings } from "../actions/shortcutBindings";
 import { probablySupportsClipboardBlob } from "../clipboard";
 import { t } from "../i18n";
 import { getShortcutKey } from "../shortcut";
 
-import { useExcalidrawActionManager } from "./App";
+import { useExcalidrawActionManager, useExcalidrawSetAppState } from "./App";
+import { Button } from "./Button";
 import { Dialog } from "./Dialog";
-import { ExternalLinkIcon, GithubIcon, youtubeIcon } from "./icons";
+import {
+  ExternalLinkIcon,
+  GithubIcon,
+  settingsIcon,
+  youtubeIcon,
+} from "./icons";
 
 import "./HelpDialog.scss";
 
 import type { JSX } from "react";
 
-const Header = () => (
+const Header = ({
+  onConfigureShortcuts,
+}: {
+  onConfigureShortcuts: () => void;
+}) => (
   <div className="HelpDialog__header">
     <a
       className="HelpDialog__btn"
@@ -56,6 +67,13 @@ const Header = () => (
       <div className="HelpDialog__link-icon">{youtubeIcon}</div>
       YouTube
     </a>
+    <Button
+      className="HelpDialog__btn HelpDialog__configure-shortcuts"
+      onSelect={onConfigureShortcuts}
+    >
+      <div className="HelpDialog__link-icon">{settingsIcon}</div>
+      {t("shortcutSettings.configure")}
+    </Button>
   </div>
 );
 
@@ -127,6 +145,8 @@ const ShortcutKey = (props: { children: React.ReactNode }) => (
 
 export const HelpDialog = ({ onClose }: { onClose?: () => void }) => {
   const actionManager = useExcalidrawActionManager();
+  const setAppState = useExcalidrawSetAppState();
+  useShortcutBindings();
   const handleClose = React.useCallback(() => {
     if (onClose) {
       onClose();
@@ -140,7 +160,11 @@ export const HelpDialog = ({ onClose }: { onClose?: () => void }) => {
         title={t("helpDialog.title")}
         className={"HelpDialog"}
       >
-        <Header />
+        <Header
+          onConfigureShortcuts={() =>
+            setAppState({ openDialog: { name: "shortcuts" } })
+          }
+        />
         <Section title={t("helpDialog.shortcuts")}>
           <ShortcutIsland
             className="HelpDialog__island--tools"
@@ -293,7 +317,7 @@ export const HelpDialog = ({ onClose }: { onClose?: () => void }) => {
             />
             <Shortcut
               label={t("buttons.zenMode")}
-              shortcuts={[getShortcutKey("Alt+Z")]}
+              shortcuts={[getShortcutFromShortcutName("zenMode")]}
             />
             <Shortcut
               label={t("buttons.objectsSnapMode")}
@@ -301,11 +325,11 @@ export const HelpDialog = ({ onClose }: { onClose?: () => void }) => {
             />
             <Shortcut
               label={t("labels.toggleGrid")}
-              shortcuts={[getShortcutKey("CtrlOrCmd+'")]}
+              shortcuts={[getShortcutFromShortcutName("gridMode")]}
             />
             <Shortcut
               label={t("labels.viewMode")}
-              shortcuts={[getShortcutKey("Alt+R")]}
+              shortcuts={[getShortcutFromShortcutName("viewMode")]}
             />
             {actionManager.isActionEnabled(actionToggleTheme) && (
               <Shortcut
@@ -315,7 +339,7 @@ export const HelpDialog = ({ onClose }: { onClose?: () => void }) => {
             )}
             <Shortcut
               label={t("stats.fullTitle")}
-              shortcuts={[getShortcutKey("Alt+/")]}
+              shortcuts={[getShortcutFromShortcutName("stats")]}
             />
             <Shortcut
               label={t("search.title")}

@@ -756,6 +756,26 @@
     "itemNotAvailable": "Command is not available...",
     "shortcutHint": "For Command palette, use {{shortcut}}"
   },
+  "shortcutSettings": {
+    "title": "Shortcut settings",
+    "configure": "Configure shortcuts",
+    "command": "Command",
+    "current": "Current shortcut",
+    "default": "Default shortcut",
+    "record": "Record shortcut",
+    "recording": "Press a shortcut",
+    "cancelRecording": "Cancel recording",
+    "resetBinding": "Reset this shortcut",
+    "resetAll": "Reset all shortcuts",
+    "modifierRequirement": "Use Ctrl/Cmd or Alt with a key.",
+    "conflict": "Already used by: {{command}}",
+    "commands": {
+      "gridMode": "Grid mode",
+      "zenMode": "Zen mode",
+      "viewMode": "View mode",
+      "stats": "Stats"
+    }
+  },
   "keys": {
     "ctrl": "Ctrl",
     "option": "Option",

@@ -1,10 +1,9 @@
-import { CODES, KEYS } from "@excalidraw/common";
-
 import { CaptureUpdateAction } from "@excalidraw/element";
 
 import { eyeIcon } from "../components/icons";
 
 import { register } from "./register";
+import { matchesShortcutBinding } from "./shortcutBindings";
 
 export const actionToggleViewMode = register({
   name: "viewMode",
@@ -31,6 +30,6 @@ export const actionToggleViewMode = register({
       app.isInteractionEnabled()
     );
   },
-  keyTest: (event) =>
-    !event[KEYS.CTRL_OR_CMD] && event.altKey && event.code === CODES.R,
+  keyTest: (event, appState, elements, app) =>
+    matchesShortcutBinding("viewMode", event, appState, app),
 });

@@ -5,6 +5,12 @@ import type { SubtypeOf } from "@excalidraw/common/utility-types";
 import { t } from "../i18n";
 import { getShortcutKey } from "../shortcut";
 
+import {
+  getShortcutBinding,
+  getShortcutBindingLabel,
+  getShortcutName,
+} from "./shortcutBindings";
+
 import type { ActionName } from "./types";
 
 export type ShortcutName =
@@ -91,14 +97,14 @@ const shortcutMap: Record<ShortcutName, string[]> = {
   copyAsPng: [getShortcutKey("Shift+Alt+C")],
   group: [getShortcutKey("CtrlOrCmd+G")],
   ungroup: [getShortcutKey("CtrlOrCmd+Shift+G")],
-  gridMode: [getShortcutKey("CtrlOrCmd+'")],
-  zenMode: [getShortcutKey("Alt+Z")],
+  gridMode: [],
+  zenMode: [],
   objectsSnapMode: [getShortcutKey("Alt+S")],
-  stats: [getShortcutKey("Alt+/")],
+  stats: [],
   addToLibrary: [],
   flipHorizontal: [getShortcutKey("Shift+H")],
   flipVertical: [getShortcutKey("Shift+V")],
-  viewMode: [getShortcutKey("Alt+R")],
+  viewMode: [],
   hyperlink: [getShortcutKey("CtrlOrCmd+K")],
   toggleElementLock: [getShortcutKey("CtrlOrCmd+Shift+L")],
   resetZoom: [getShortcutKey("CtrlOrCmd+0")],
@@ -116,6 +122,10 @@ const shortcutMap: Record<ShortcutName, string[]> = {
 };
 
 export const getShortcutFromShortcutName = (name: ShortcutName, idx = 0) => {
+  const configurableName = getShortcutName(name as ActionName);
+  if (configurableName) {
+    return getShortcutBindingLabel(getShortcutBinding(configurableName));
+  }
   const shortcuts = shortcutMap[name];
   // if multiple shortcuts available, take the first one
   return shortcuts && shortcuts.length > 0

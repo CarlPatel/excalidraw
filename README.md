@@ -156,6 +156,32 @@ The category split is the one in the RFC. Colors are stroke and background. Stro
 ### Remaining
 The all-categories check copies from a labelled rectangle and from an arrow. It does not also copy from a text element, a frame, or a sticky note. The button is disabled when nothing has been copied, and there is no separate message for that. The RFC also called for the existing copy/paste styles, sticky note, context menu, and command palette tests, plus a type check. Those results are not recorded here.
 
+## Issue #11 — Change a Keyboard Shortcut
+**Owner:** @Misterurias
+
+### Change
+Added configurable keyboard shortcuts for grid mode, zen mode, view mode, and stats. These four commands now use the same binding data for running the shortcut and displaying it in the Help Dialog and Command Palette. Users can change their bindings from a shortcut settings dialog, and the changes are saved in browser storage so they stay after a reload. The settings also check for conflicts before saving and let the user reset one shortcut or all four back to their defaults.
+
+### Checks
+Added tests covering:
+- The four original default shortcuts still working
+- Changing a shortcut makes the new binding work and the old one stop working
+- Changed shortcuts showing correctly in the Help Dialog and Command Palette
+- Resetting one shortcut or all shortcuts back to their defaults
+- Rejecting conflicts with configurable and existing fixed shortcuts
+- Saving and loading changed shortcuts through localStorage
+- Invalid saved shortcut data falling back to the defaults
+- Configurable shortcuts not firing while a new shortcut is being recorded
+- Configurable shortcuts not firing while editing text on the canvas
+
+All 9 shortcut tests pass. The full test suite also passes with 2,201 tests passing, 47 skipped, and 1 todo. The TypeScript check and checks on the files changed for this feature also pass.
+
+### Changes from RFC
+The main design stayed the same as the RFC: only grid mode, zen mode, view mode, and stats became configurable, while the other shortcuts continue using their existing behavior. The design review feedback was also added into the implementation. Bindings use a platform-neutral Ctrl/Cmd representation, shortcut actions are blocked while the settings dialog is recording, and the configurable shortcuts do not run while canvas text is being edited.
+
+One implementation detail became more clearer than it was in the original RFC: new custom shortcuts require Ctrl/Cmd or Alt. This helps avoid conflicts with normal typing and Excalidraw's single-key tool shortcuts.
+
+
 ## Contributing
 
 - Missing something or found a bug? [Report here](https://github.com/excalidraw/excalidraw/issues).
