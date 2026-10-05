@@ -1,0 +1,47 @@
+.ShortcutSettingsDialog__content {
+  display: grid;
+  gap: 1rem;
+  min-width: min(24rem, 70vw);
+}
+
+.ShortcutSettingsDialog__command {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ShortcutSettingsDialog__command select {
+  min-height: 2.5rem;
+  padding: 0.4rem 0.6rem;
+  color: var(--color-on-surface);
+  background: var(--color-surface-low);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.ShortcutSettingsDialog__current,
+.ShortcutSettingsDialog__default {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ShortcutSettingsDialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ShortcutSettingsDialog__actions .excalidraw-button {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 2.5rem;
+  padding: 0.625rem 0.875rem;
+  white-space: nowrap;
+}
+
+.ShortcutSettingsDialog__error {
+  color: var(--color-danger);
+  margin: 0;
+}

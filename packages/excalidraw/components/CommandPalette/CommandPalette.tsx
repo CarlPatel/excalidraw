@@ -26,6 +26,7 @@ import {
   actionLinkToElement,
 } from "../../actions/actionElementLink";
 import { getShortcutFromShortcutName } from "../../actions/shortcuts";
+import { useShortcutBindings } from "../../actions/shortcutBindings";
 import { trackEvent } from "../../analytics";
 import { useUIAppState } from "../../context/ui-appState";
 import { deburr } from "../../deburr";
@@ -52,6 +53,7 @@ import {
   brainIconThin,
   LibraryIcon,
   historyCommandIcon,
+  settingsIcon,
 } from "../icons";
 
 import { TOOLS, getToolLetter } from "../Tools";
@@ -205,6 +207,7 @@ function CommandPaletteInner({
   const setAppState = useExcalidrawSetAppState();
   const appProps = useAppProps();
   const actionManager = useExcalidrawActionManager();
+  const shortcutBindings = useShortcutBindings();
 
   const [lastUsed, setLastUsed] = useAtom(lastUsedPaletteItem);
   const [allCommands, setAllCommands] = useState<
@@ -217,6 +220,7 @@ function CommandPaletteInner({
     uiAppState,
     customCommandPaletteItems,
     appProps,
+    shortcutBindings,
   });
 
   const [libraryItemsData] = useAtom(libraryItemsAtom);
@@ -421,6 +425,16 @@ function CommandPaletteInner({
 
       const additionalCommands: CommandPaletteItem[] = [
         actionToCommand(actionToggleTheme, DEFAULT_CATEGORIES.app),
+        {
+          label: t("shortcutSettings.title"),
+          category: DEFAULT_CATEGORIES.app,
+          icon: settingsIcon,
+          keywords: ["keyboard", "bindings", "shortcuts"],
+          viewMode: true,
+          perform: () => {
+            setAppState({ openDialog: { name: "shortcuts" } });
+          },
+        },
         {
           label: t("toolBar.library"),
           category: DEFAULT_CATEGORIES.app,

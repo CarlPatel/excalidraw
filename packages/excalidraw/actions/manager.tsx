@@ -89,27 +89,32 @@ export class ActionManager {
   private isActionBlockedByViewportTransition = (action: Action) =>
     action.navigation === true && this.app.viewport.isLockedTransitionPending;
 
+  getMatchingActions(
+    event: React.KeyboardEvent | KeyboardEvent,
+    excludedActions?: ReadonlySet<ActionName>,
+  ) {
+    const canvasActions = this.app.props.UIOptions.canvasActions;
+    const appState = this.getAppState();
+    const elements = this.getElementsIncludingDeleted();
+    return Object.values(this.actions)
+      .sort((a, b) => (b.keyPriority || 0) - (a.keyPriority || 0))
+      .filter(
+        (action) =>
+          !excludedActions?.has(action.name) &&
+          (action.name in canvasActions
+            ? canvasActions[action.name as keyof typeof canvasActions]
+            : true) &&
+          action.keyTest &&
+          action.keyTest(event, appState, elements, this.app),
+      );
+  }
+
   handleKeyDown(event: React.KeyboardEvent | KeyboardEvent) {
     if (!this.app.isInteractionEnabled() && !this.app.isNavigationEnabled()) {
       return false;
     }
 
-    const canvasActions = this.app.props.UIOptions.canvasActions;
-    const data = Object.values(this.actions)
-      .sort((a, b) => (b.keyPriority || 0) - (a.keyPriority || 0))
-      .filter(
-        (action) =>
-          (action.name in canvasActions
-            ? canvasActions[action.name as keyof typeof canvasActions]
-            : true) &&
-          action.keyTest &&
-          action.keyTest(
-            event,
-            this.getAppState(),
-            this.getElementsIncludingDeleted(),
-            this.app,
-          ),
-      );
+    const data = this.getMatchingActions(event);
 
     if (data.length !== 1) {
       if (data.length > 1) {

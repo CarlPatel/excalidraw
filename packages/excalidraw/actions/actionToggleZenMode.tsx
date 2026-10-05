@@ -1,10 +1,9 @@
-import { CODES, KEYS } from "@excalidraw/common";
-
 import { CaptureUpdateAction } from "@excalidraw/element";
 
 import { coffeeIcon } from "../components/icons";
 
 import { register } from "./register";
+import { matchesShortcutBinding } from "./shortcutBindings";
 
 export const actionToggleZenMode = register({
   name: "zenMode",
@@ -31,6 +30,6 @@ export const actionToggleZenMode = register({
       typeof appProps.zenModeEnabled === "undefined"
     );
   },
-  keyTest: (event) =>
-    !event[KEYS.CTRL_OR_CMD] && event.altKey && event.code === CODES.Z,
+  keyTest: (event, appState, elements, app) =>
+    matchesShortcutBinding("zenMode", event, appState, app),
 });

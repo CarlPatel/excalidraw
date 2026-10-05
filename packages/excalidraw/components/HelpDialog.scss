@@ -24,6 +24,8 @@
       display: flex;
       column-gap: 0.5rem;
       align-items: center;
+      width: auto;
+      height: auto;
       background-color: var(--background);
       padding: 0.625rem 1rem;
       border: 1px solid var(--background);
@@ -48,6 +50,10 @@
       &:active {
         border-color: var(--color-primary);
       }
+    }
+
+    &__configure-shortcuts {
+      white-space: nowrap;
     }
 
     &__link-icon {
